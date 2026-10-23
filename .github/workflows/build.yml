@@ -1,1 +1,24 @@
-{"name":"build","on":{"workflow_dispatch":{}},"permissions":{"contents":"write"},"jobs":{"build":{"runs-on":"ubuntu-latest","steps":[{"uses":"actions/checkout@v4"},{"uses":"actions/setup-go@v5","with":{"go-version":"1.23"}},{"name":"Build","run":"CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o ah-mcp-linux-amd64 ."},{"name":"Release","env":{"GH_TOKEN":"${{ secrets.GITHUB_TOKEN }}"},"run":"gh release delete latest --yes --cleanup-tag || true; gh release create latest ah-mcp-linux-amd64 --title latest --notes 'Linux build' --target $GITHUB_SHA"}]}}}
+name: build
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - name: Build
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o ah-mcp-linux-amd64 .
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags='-s -w' -o ah-mcp-darwin-arm64 .
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o ah-mcp-darwin-amd64 .
+      - name: Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest ah-mcp-linux-amd64 ah-mcp-darwin-arm64 ah-mcp-darwin-amd64 --title latest --notes 'Builds' --target $GITHUB_SHA
