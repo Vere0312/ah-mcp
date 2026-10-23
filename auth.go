@@ -163,10 +163,16 @@ func RefreshIfNeeded(ctx context.Context, path string) error {
 // redirect_uri=appie://login-exit (a custom iOS URL scheme). The proxy
 // intercepts this redirect and converts it to an HTTP callback we can receive.
 func StartOAuthFlow(ctx context.Context, callbackHost string, callbackPort int, tokensPath string) (loginURL string, done <-chan error, err error) {
-	addr := fmt.Sprintf("0.0.0.0:%d", callbackPort)
-	listener, listenErr := net.Listen("tcp", addr)
-	if listenErr != nil {
-		return "", nil, fmt.Errorf("start OAuth server on port %d: %w", callbackPort, listenErr)
+	// callbackPort <= 0: no separate listener; the proxy is served on the main
+	// HTTP port (needed on hosts that expose a single port, e.g. Azure App Service).
+	var listener net.Listener
+	if callbackPort > 0 {
+		addr := fmt.Sprintf("0.0.0.0:%d", callbackPort)
+		l, listenErr := net.Listen("tcp", addr)
+		if listenErr != nil {
+			return "", nil, fmt.Errorf("start OAuth server on port %d: %w", callbackPort, listenErr)
+		}
+		listener = l
 	}
 
 	target, _ := url.Parse(ahLoginBase)
@@ -215,7 +221,11 @@ func StartOAuthFlow(ctx context.Context, callbackHost string, callbackPort int, 
 	mux.Handle("/", proxy)
 
 	srv := &http.Server{Handler: mux}
-	go func() { _ = srv.Serve(listener) }()
+	if listener != nil {
+		go func() { _ = srv.Serve(listener) }()
+	} else {
+		setSharedOAuth(mux)
+	}
 
 	// Build the login URL that the user must open (via our local proxy).
 	loginURL = fmt.Sprintf(
@@ -229,6 +239,9 @@ func StartOAuthFlow(ctx context.Context, callbackHost string, callbackPort int, 
 			shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			_ = srv.Shutdown(shutCtx)
+			if listener == nil {
+				setSharedOAuth(nil)
+			}
 		}()
 
 		select {

@@ -148,6 +148,16 @@ func main() {
 		if mcpToken != "" {
 			handler = simpleAuthMiddleware(mcpToken, httpSrv)
 		}
+		mcpHandler := handler
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !strings.HasPrefix(r.URL.Path, "/mcp") {
+				if h := getSharedOAuth(); h != nil {
+					h.ServeHTTP(w, r)
+					return
+				}
+			}
+			mcpHandler.ServeHTTP(w, r)
+		})
 		httpServer := &http.Server{Addr: addr, Handler: handler}
 		if err := httpServer.ListenAndServe(); err != nil {
 			fmt.Fprintf(os.Stderr, "[Albert Heijn MCP] Streamable HTTP server error: %v\n", err)
