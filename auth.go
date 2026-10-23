@@ -187,6 +187,7 @@ func StartOAuthFlow(ctx context.Context, callbackHost string, callbackPort int, 
 			return
 		}
 		fmt.Fprintf(os.Stderr, "[ah-mcp] OAuth callback received (code len=%d)\n", len(code))
+		dbg("CALLBACK received code len=%d", len(code))
 		select {
 		case codeCh <- code:
 		default:
@@ -211,6 +212,15 @@ func StartOAuthFlow(ctx context.Context, callbackHost string, callbackPort int, 
 			}
 		},
 		ModifyResponse: func(resp *http.Response) error {
+			loc := resp.Header.Get("Location")
+			if lu, e := url.Parse(loc); e == nil && loc != "" {
+				loc = lu.Scheme + "://" + lu.Host + lu.Path
+			}
+			var ck []string
+			for _, c := range resp.Header.Values("Set-Cookie") {
+				ck = append(ck, strings.SplitN(c, "=", 2)[0])
+			}
+			dbg("%s %s -> %d ct=%s loc=%s cookies=%v", resp.Request.Method, resp.Request.URL.Path, resp.StatusCode, resp.Header.Get("Content-Type"), loc, ck)
 			return rewriteOAuthResponse(resp, callbackHost, target.Host)
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, proxyErr error) {

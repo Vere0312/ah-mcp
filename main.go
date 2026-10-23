@@ -150,6 +150,15 @@ func main() {
 		}
 		mcpHandler := handler
 		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/mcp-debug" {
+				if mcpToken != "" && r.URL.Query().Get("token") == mcpToken {
+					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+					_, _ = w.Write([]byte(dbgDump()))
+				} else {
+					http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				}
+				return
+			}
 			if !strings.HasPrefix(r.URL.Path, "/mcp") {
 				if h := getSharedOAuth(); h != nil {
 					h.ServeHTTP(w, r)
