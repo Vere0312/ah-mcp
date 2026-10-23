@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"fmt"
 	"net/http"
 	"strings"
@@ -47,3 +48,5 @@ func dbgDump() string {
 	defer dbgMu.Unlock()
 	return strings.Join(dbgLines, "\n") + "\n"
 }
+
+var redactRe = regexp.MustCompile(`[A-Za-z0-9_\-\.%]{24,}`)

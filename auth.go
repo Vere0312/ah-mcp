@@ -214,7 +214,17 @@ func StartOAuthFlow(ctx context.Context, callbackHost string, callbackPort int, 
 		ModifyResponse: func(resp *http.Response) error {
 			loc := resp.Header.Get("Location")
 			if lu, e := url.Parse(loc); e == nil && loc != "" {
-				loc = lu.Scheme + "://" + lu.Host + lu.Path
+				keys := []string{}
+				for k := range lu.Query() {
+					keys = append(keys, k)
+				}
+				loc = lu.Scheme + "://" + lu.Host + lu.Path + " qkeys=" + strings.Join(keys, ",")
+			}
+			if strings.HasPrefix(resp.Request.URL.Path, "/login/api/login") && resp.Body != nil {
+				if raw, e := io.ReadAll(resp.Body); e == nil {
+					resp.Body = io.NopCloser(bytes.NewReader(raw))
+					dbg("BODY %s: %s", resp.Request.URL.Path, redactRe.ReplaceAllStringFunc(string(raw), func(s string) string { return fmt.Sprintf("<%d>", len(s)) }))
+				}
 			}
 			var ck []string
 			for _, c := range resp.Header.Values("Set-Cookie") {
